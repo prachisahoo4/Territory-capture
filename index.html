@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f2f1ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121216" media="(prefers-color-scheme: dark)">
+<title>Territory Capture</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #f2f1ed;
+    --surface: #ffffff;
+    --surface2: #f7f6f2;
+    --border: #d8d7d2;
+    --text: #161614;
+    --text2: #5a5a57;
+    --text3: #a0a09c;
+    --cell-empty: #fafaf8;
+    --cell-hover: #dbeafe;
+    --cell-p: #b5d5f5;
+    --cell-ai: #f5c3b1;
+    --bdr-p: #185fa5;
+    --bdr-ai: #993c1d;
+    --score-p: #d6e8fa;
+    --score-ai: #fad8cc;
+    --btn: #e8e7e2;
+    --btn-h: #d8d7d1;
+    --btn-active: #b4d3f6;
+    --win: #22a052;
+    --lose: #c03728;
+    --draw: #5f5e5a;
+    --radius: 12px;
+    --gap: 5px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121216;
+      --surface: #1a1a20;
+      --surface2: #222228;
+      --border: #303038;
+      --text: #e8e8e4;
+      --text2: #96948f;
+      --text3: #5c5a56;
+      --cell-empty: #242430;
+      --cell-hover: #1e3a5a;
+      --cell-p: #1c4e94;
+      --cell-ai: #8a3420;
+      --bdr-p: #58a0f0;
+      --bdr-ai: #e46c44;
+      --score-p: #14346200;
+      --score-ai: #621600;
+      --btn: #26262e;
+      --btn-h: #343440;
+      --btn-active: #1c4484;
+      --win: #2cbc62;
+      --lose: #da4836;
+      --draw: #807e7a;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 480px;
+    padding: 16px 14px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .header-left { display: flex; flex-direction: column; gap: 2px; }
+  .title { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+  .subtitle { font-size: 12px; color: var(--text2); }
+
+  .scores {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .score-box {
+    border-radius: 10px;
+    padding: 6px 14px;
+    text-align: center;
+    border: 1.5px solid;
+    min-width: 62px;
+  }
+  .score-box.player { background: var(--score-p); border-color: var(--bdr-p); }
+  .score-box.ai     { background: var(--score-ai); border-color: var(--bdr-ai); }
+  .score-label { font-size: 11px; color: var(--text2); font-weight: 500; }
+  .score-num   { font-size: 24px; font-weight: 600; line-height: 1.1; color: var(--text); }
+
+  /* ── Stats row ── */
+  .stats {
+    display: flex;
+    gap: 8px;
+  }
+  .stat-pill {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .stat-pill span { color: var(--text); font-weight: 500; }
+
+  /* ── Board ── */
+  .board-wrap {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    padding: 10px;
+    touch-action: none;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: var(--gap);
+    width: 100%;
+  }
+
+  .cell {
+    aspect-ratio: 1;
+    border-radius: 9px;
+    border: 1.5px solid var(--border);
+    background: var(--cell-empty);
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+    position: relative;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .cell:active { transform: scale(0.92); }
+  .cell.hover  { background: var(--cell-hover); border-color: var(--bdr-p); }
+  .cell.p1     { background: var(--cell-p);  border-color: var(--bdr-p);  }
+  .cell.p2     { background: var(--cell-ai); border-color: var(--bdr-ai); }
+  .cell.pop    { animation: pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+  @keyframes pop {
+    0%   { transform: scale(0.3); opacity: 0.4; }
+    60%  { transform: scale(1.1); }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+  @keyframes capture {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .cell.captured { animation: capture 0.22s ease; }
+
+  /* ── Status ── */
+  .status {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text2);
+    min-height: 20px;
+    transition: color 0.2s;
+  }
+  .status.win  { color: var(--win);  font-weight: 500; }
+  .status.lose { color: var(--lose); font-weight: 500; }
+  .status.draw { color: var(--draw); font-weight: 500; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .leg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .leg-dot { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; flex-shrink: 0; }
+  .leg-dot.p { background: var(--cell-p);  border-color: var(--bdr-p);  }
+  .leg-dot.a { background: var(--cell-ai); border-color: var(--bdr-ai); }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .controls-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 0.5px solid var(--border);
+    background: var(--btn);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.1s, transform 0.08s;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .btn:active   { transform: scale(0.97); background: var(--btn-h); }
+  .btn.active   { background: var(--btn-active); border-color: var(--bdr-p); color: var(--text); }
+  .btn.primary  { background: var(--bdr-p); color: #fff; border-color: var(--bdr-p); }
+  .btn.primary:active { opacity: 0.85; }
+
+  .diff-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-align: center;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ── AI thinking indicator ── */
+  .thinking {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text2);
+    animation: bounce 1.2s infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%            { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* ── Dark mode toggle ── */
+  .dark-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 0.5px solid var(--border);
+    background: var(--btn);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .dark-toggle:active { background: var(--btn-h); transform: scale(0.95); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="title">Territory Capture</div>
+      <div class="subtitle">AI Strategy Game</div>
+    </div>
+    <div class="scores">
+      <div class="score-box player">
+        <div class="score-label">You</div>
+        <div class="score-num" id="score-p">0</div>
+      </div>
+      <div class="score-box ai">
+        <div class="score-label">AI</div>
+        <div class="score-num" id="score-ai">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats pills -->
+  <div class="stats">
+    <div class="stat-pill">Moves <span id="moves">0</span></div>
+    <div class="stat-pill">W <span id="rec-w">0</span> &nbsp;L <span id="rec-l">0</span> &nbsp;D <span id="rec-d">0</span></div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status" id="status">Your turn — tap a cell</div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="leg"><div class="leg-dot p"></div>Your tiles</div>
+    <div class="leg"><div class="leg-dot a"></div>AI tiles</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="diff-label">AI Difficulty</div>
+    <div class="controls-row">
+      <button class="btn" id="d-easy"   onclick="setDiff('easy')">Easy</button>
+      <button class="btn active" id="d-medium" onclick="setDiff('medium')">Medium</button>
+      <button class="btn" id="d-hard"   onclick="setDiff('hard')">Hard</button>
+    </div>
+    <div class="controls-row">
+      <button class="btn primary" onclick="newGame()">New Game</button>
+      <div class="dark-toggle" id="dark-toggle" onclick="toggleDark()">🌙</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ROWS=6,COLS=6,EMPTY=0,PLAYER=1,AI=2;
+let grid,turn,gameOver,aiThinking,moves,record={w:0,l:0,d:0},diff='medium';
+let darkForced=false, isDark=false;
+
+// ── Board logic ────────────────────────────────────────────────
+function makeGrid(){ return Array.from({length:ROWS},()=>Array(COLS).fill(EMPTY)); }
+
+function neighbors(r,c){
+  return [[-1,0],[1,0],[0,-1],[0,1]]
+    .map(([dr,dc])=>[r+dr,c+dc])
+    .filter(([nr,nc])=>nr>=0&&nr<ROWS&&nc>=0&&nc<COLS);
+}
+
+function countSurroundedBy(g,r,c,player){
+  return neighbors(r,c).filter(([nr,nc])=>g[nr][nc]===player).length;
+}
+
+function placeTile(g,r,c,player){
+  if(g[r][c]!==EMPTY) return false;
+  const ng=g.map(row=>[...row]);
+  ng[r][c]=player;
+  const opp=player===PLAYER?AI:PLAYER;
+  for(const[nr,nc]of neighbors(r,c)){
+    if(ng[nr][nc]===opp && countSurroundedBy(ng,nr,nc,player)>=3){
+      ng[nr][nc]=player;
+    }
+  }
+  return ng;
+}
+
+function getEmpty(g){ const e=[]; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(g[r][c]===EMPTY) e.push([r,c]); return e; }
+function isFull(g){ return getEmpty(g).length===0; }
+function scores(g){ let p=0,a=0; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){ if(g[r][c]===PLAYER)p++; else if(g[r][c]===AI)a++; } return{p,a}; }
+function evaluate(g){ const{p,a}=scores(g); return a-p; }
+
+// ── AI algorithms ──────────────────────────────────────────────
+function randomMove(g){ const e=getEmpty(g); return e.length?e[Math.floor(Math.random()*e.length)]:null; }
+
+function greedyMove(g){
+  const cells=getEmpty(g); if(!cells.length) return null;
+  let best=null,bestGain=-Infinity;
+  const{a:curA}=scores(g);
+  for(const[r,c]of cells){
+    const ng=placeTile(g,r,c,AI);
+    const gain=scores(ng).a-curA;
+    if(gain>bestGain){bestGain=gain;best=[r,c];}
+  }
+  return best;
+}
+
+function minimax(g,depth,maximizing){
+  const cells=getEmpty(g);
+  if(depth===0||!cells.length) return evaluate(g);
+  if(maximizing){
+    let best=-Infinity;
+    for(const[r,c]of cells){ best=Math.max(best,minimax(placeTile(g,r,c,AI),depth-1,false)); }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const[r,c]of cells){ best=Math.min(best,minimax(placeTile(g,r,c,PLAYER),depth-1,true)); }
+    return best;
+  }
+}
+
+function minimaxMove(g,depth=2){
+  const cells=getEmpty(g); if(!cells.length) return null;
+  let best=null,bestScore=-Infinity;
+  for(const[r,c]of cells){
+    const score=minimax(placeTile(g,r,c,AI),depth-1,false);
+    if(score>bestScore){bestScore=score;best=[r,c];}
+  }
+  return best;
+}
+
+function getAIMove(g){
+  if(diff==='easy') return randomMove(g);
+  if(diff==='medium') return greedyMove(g);
+  return minimaxMove(g,2);
+}
+
+// ── Sound ──────────────────────────────────────────────────────
+let ctx=null;
+function getCtx(){ if(!ctx) ctx=new(window.AudioContext||window.webkitAudioContext)(); return ctx; }
+
+function beep(freq=440,dur=0.08,vol=0.15,type='sine'){
+  try{
+    const c=getCtx(), o=c.createOscillator(), g=c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol,c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);
+    o.start(c.currentTime); o.stop(c.currentTime+dur);
+  } catch(e){}
+}
+
+function playPlace()   { beep(520,0.07,0.12); }
+function playCapture() { beep(660,0.11,0.18); setTimeout(()=>beep(780,0.07,0.10),80); }
+function playWin()     { beep(523,0.12,0.18); setTimeout(()=>beep(659,0.12,0.18),120); setTimeout(()=>beep(784,0.2,0.20),240); }
+function playLose()    { beep(330,0.15,0.16); setTimeout(()=>beep(262,0.2,0.14),140); }
+
+// ── Rendering ──────────────────────────────────────────────────
+function buildBoard(){
+  const el=document.getElementById('board');
+  el.innerHTML='';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    cell.className='cell';
+    cell.id=`c${r}-${c}`;
+    cell.addEventListener('touchstart',()=>onCellHover(r,c),{passive:true});
+    cell.addEventListener('click',()=>onCellClick(r,c));
+    el.appendChild(cell);
+  }
+}
+
+function renderGrid(changedCells=[]){
+  const captureSet=new Set(changedCells.map(([r,c])=>`${r}-${c}`));
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const el=document.getElementById(`c${r}-${c}`);
+    if(!el) continue;
+    el.className='cell';
+    if(grid[r][c]===PLAYER) el.classList.add('p1');
+    else if(grid[r][c]===AI) el.classList.add('p2');
+    if(captureSet.has(`${r}-${c}`)) {
+      el.classList.add('pop');
+      el.addEventListener('animationend',()=>el.classList.remove('pop'),{once:true});
+    }
+  }
+}
+
+function updateScores(){
+  const{p,a}=scores(grid);
+  document.getElementById('score-p').textContent=p;
+  document.getElementById('score-ai').textContent=a;
+  document.getElementById('moves').textContent=moves;
+}
+
+function setStatus(msg,cls=''){
+  const el=document.getElementById('status');
+  el.className='status '+(cls||'');
+  if(aiThinking){
+    el.innerHTML='<div class="thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+  } else {
+    el.textContent=msg;
+  }
+}
+
+function updateRecord(){
+  document.getElementById('rec-w').textContent=record.w;
+  document.getElementById('rec-l').textContent=record.l;
+  document.getElementById('rec-d').textContent=record.d;
+}
+
+// ── Game flow ──────────────────────────────────────────────────
+function newGame(){
+  grid=makeGrid(); turn=PLAYER; gameOver=false; aiThinking=false; moves=0;
+  buildBoard(); renderGrid(); updateScores(); setStatus('Your turn — tap a cell');
+}
+
+function onCellHover(r,c){
+  if(gameOver||aiThinking||turn!==PLAYER||grid[r][c]!==EMPTY) return;
+  document.querySelectorAll('.cell.hover').forEach(e=>e.classList.remove('hover'));
+  document.getElementById(`c${r}-${c}`)?.classList.add('hover');
+}
+
+function onCellClick(r,c){
+  if(gameOver||aiThinking||turn!==PLAYER||grid[r][c]!==EMPTY) return;
+  document.querySelectorAll('.cell.hover').forEach(e=>e.classList.remove('hover'));
+  const old=grid.map(row=>[...row]);
+  grid=placeTile(grid,r,c,PLAYER);
+  moves++;
+  const changed=[];
+  for(let nr=0;nr<ROWS;nr++) for(let nc=0;nc<COLS;nc++){
+    if(grid[nr][nc]!==old[nr][nc]) changed.push([nr,nc]);
+  }
+  const caps=changed.filter(([nr,nc])=>!(nr===r&&nc===c));
+  caps.length?playCapture():playPlace();
+  renderGrid(changed);
+  updateScores();
+  if(isFull(grid)){endGame();return;}
+  turn=AI; aiThinking=true; setStatus('','');
+  setTimeout(doAIMove,320);
+}
+
+function doAIMove(){
+  const move=getAIMove(grid);
+  if(move){
+    const[r,c]=move;
+    const old=grid.map(row=>[...row]);
+    grid=placeTile(grid,r,c,AI);
+    moves++;
+    const changed=[];
+    for(let nr=0;nr<ROWS;nr++) for(let nc=0;nc<COLS;nc++){
+      if(grid[nr][nc]!==old[nr][nc]) changed.push([nr,nc]);
+    }
+    const caps=changed.filter(([nr,nc])=>!(nr===r&&nc===c));
+    caps.length?playCapture():playPlace();
+    renderGrid(changed);
+    updateScores();
+  }
+  aiThinking=false;
+  if(isFull(grid)){endGame();return;}
+  turn=PLAYER;
+  setStatus('Your turn — tap a cell');
+}
+
+function endGame(){
+  gameOver=true;
+  const{p,a}=scores(grid);
+  if(p>a){ record.w++; playWin();  setStatus(`You win! ${p} – ${a}  🎉`,'win'); }
+  else if(a>p){ record.l++; playLose(); setStatus(`AI wins! ${a} – ${p}`,'lose'); }
+  else{ record.d++; setStatus(`Draw! ${p} each`,'draw'); }
+  updateRecord();
+}
+
+// ── Dark mode ──────────────────────────────────────────────────
+function applyDark(dark){
+  isDark=dark;
+  const root=document.documentElement;
+  if(dark){
+    root.style.setProperty('--bg','#121216');
+    root.style.setProperty('--surface','#1a1a20');
+    root.style.setProperty('--surface2','#222228');
+    root.style.setProperty('--border','#303038');
+    root.style.setProperty('--text','#e8e8e4');
+    root.style.setProperty('--text2','#96948f');
+    root.style.setProperty('--text3','#5c5a56');
+    root.style.setProperty('--cell-empty','#242430');
+    root.style.setProperty('--cell-hover','#1e3a5a');
+    root.style.setProperty('--cell-p','#1c4e94');
+    root.style.setProperty('--cell-ai','#8a3420');
+    root.style.setProperty('--bdr-p','#58a0f0');
+    root.style.setProperty('--bdr-ai','#e46c44');
+    root.style.setProperty('--score-p','#143462');
+    root.style.setProperty('--score-ai','#621600');
+    root.style.setProperty('--btn','#26262e');
+    root.style.setProperty('--btn-h','#343440');
+    root.style.setProperty('--btn-active','#1c4484');
+    document.getElementById('dark-toggle').textContent='☀️';
+    document.querySelector('meta[name="theme-color"][media*="light"]')?.setAttribute('content','#121216');
+  } else {
+    root.style.setProperty('--bg','#f2f1ed');
+    root.style.setProperty('--surface','#ffffff');
+    root.style.setProperty('--surface2','#f7f6f2');
+    root.style.setProperty('--border','#d8d7d2');
+    root.style.setProperty('--text','#161614');
+    root.style.setProperty('--text2','#5a5a57');
+    root.style.setProperty('--text3','#a0a09c');
+    root.style.setProperty('--cell-empty','#fafaf8');
+    root.style.setProperty('--cell-hover','#dbeafe');
+    root.style.setProperty('--cell-p','#b5d5f5');
+    root.style.setProperty('--cell-ai','#f5c3b1');
+    root.style.setProperty('--bdr-p','#185fa5');
+    root.style.setProperty('--bdr-ai','#993c1d');
+    root.style.setProperty('--score-p','#d6e8fa');
+    root.style.setProperty('--score-ai','#fad8cc');
+    root.style.setProperty('--btn','#e8e7e2');
+    root.style.setProperty('--btn-h','#d8d7d1');
+    root.style.setProperty('--btn-active','#b4d3f6');
+    document.getElementById('dark-toggle').textContent='🌙';
+    document.querySelector('meta[name="theme-color"][media*="light"]')?.setAttribute('content','#f2f1ed');
+  }
+}
+
+function toggleDark(){
+  darkForced=true;
+  applyDark(!isDark);
+}
+
+// ── Difficulty ─────────────────────────────────────────────────
+function setDiff(d){
+  diff=d;
+  ['easy','medium','hard'].forEach(x=>{
+    document.getElementById(`d-${x}`)?.classList.toggle('active',x===d);
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────
+const prefersDark=window.matchMedia('(prefers-color-scheme: dark)');
+applyDark(prefersDark.matches);
+prefersDark.addEventListener('change',e=>{ if(!darkForced) applyDark(e.matches); });
+newGame();
+</script>
+</body>
+</html>
